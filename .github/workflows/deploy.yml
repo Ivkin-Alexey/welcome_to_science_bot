@@ -25,8 +25,8 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           # Переход в директорию проекта
-          mkdir -p ~/telegram-bot
-          cd ~/telegram-bot
+          mkdir -p ${{ secrets.PROJECT_PATH }}
+          cd ${{ secrets.PROJECT_PATH }}
           
           # Сохранение .env файла
           cat > .env << 'EOF'
