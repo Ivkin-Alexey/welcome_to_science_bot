@@ -1,0 +1,48 @@
+name: Deploy Telegram Bot
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Create .env file
+      run: |
+        echo "BOT_TOKEN=${{ secrets.BOT_API_TOKEN }}" > .env
+        echo "LOG_LEVEL=INFO" >> .env
+
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          # Переход в директорию проекта
+          mkdir -p ~/telegram-bot
+          cd ~/telegram-bot
+          
+          # Сохранение .env файла
+          cat > .env << 'EOF'
+          ${{ secrets.BOT_API_TOKEN }}
+          EOF
+          
+          # Клонирование или обновление кода
+          if [ -d .git ]; then
+            git pull origin main
+          else
+            git clone https://github.com/${{ github.repository }} .
+          fi
+          
+          # Сборка и запуск контейнера
+          docker-compose down
+          docker-compose up -d --build
+          
+          # Очистка старых образов
+          docker image prune -f
