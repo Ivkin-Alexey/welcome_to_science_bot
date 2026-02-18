@@ -27,7 +27,7 @@ jobs:
             cd $PROJECT_PATH
 
             # Сохранение .env файла
-            echo "BOT_API_KEY=${{ secrets.BOT_API_TOKEN }}" > .env
+            echo "BOT_API_TOKEN=${{ secrets.BOT_API_TOKEN }}" > .env
             echo "LOG_LEVEL=INFO" >> .env
 
             # Клонирование или обновление кода
