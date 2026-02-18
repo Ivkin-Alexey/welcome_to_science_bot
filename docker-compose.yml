@@ -14,9 +14,10 @@ services:
       - NODE_ENV=development
     volumes:
       # Монтируем исходники для hot reload
-      - ./src:/app/src:ro
+      - ./src:/app/src
       - ./package.json:/app/package.json:ro
       - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./nodemon.json:/app/nodemon.json:ro
       # Исключаем node_modules из монтирования
       - /app/node_modules
     profiles:
