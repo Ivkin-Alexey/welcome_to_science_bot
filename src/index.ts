@@ -4,7 +4,7 @@ import { Bot, GrammyError, HttpError } from 'grammy'
 const BOT_API_TOKEN = process.env.BOT_API_TOKEN
 
 if(!BOT_API_TOKEN) {
-  throw new Error("BOT_API_KEY is not defined")
+  throw new Error("BOT_API_TOKEN is not defined")
 }
 
 const bot = new Bot(BOT_API_TOKEN)

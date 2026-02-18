@@ -19,13 +19,15 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e  # Останавливать скрипт при любой ошибке
+            
             # Переход в директорию проекта
             PROJECT_PATH="${{ secrets.PROJECT_PATH }}"
             mkdir -p $PROJECT_PATH
             cd $PROJECT_PATH
 
             # Сохранение .env файла
-            echo "BOT_TOKEN=${{ secrets.BOT_API_TOKEN }}" > .env
+            echo "BOT_API_KEY=${{ secrets.BOT_API_TOKEN }}" > .env
             echo "LOG_LEVEL=INFO" >> .env
 
             # Клонирование или обновление кода
@@ -38,9 +40,9 @@ jobs:
             # Сборка Docker образа
             docker build -t telegram-bot:latest .
 
-            # Остановка и удаление старого контейнера (игнорируем ошибки, если контейнера нет)
-            docker stop telegram-bot-container || true
-            docker rm telegram-bot-container || true
+            # Остановка и удаление старого контейнера
+            docker stop telegram-bot-container 2>/dev/null || true
+            docker rm telegram-bot-container 2>/dev/null || true
 
             # Запуск нового контейнера
             docker run -d \
@@ -49,5 +51,15 @@ jobs:
               --env-file .env \
               telegram-bot:latest
 
-            # Очистка старых образов (кроме только что собранного)
+            # Проверка что контейнер жив (минималистично, но надежно)
+            echo "⏳ Проверка контейнера..."
+            sleep 3
+            docker ps --filter "name=telegram-bot-container" --filter "status=running" --format "table {{.Names}}\t{{.Status}}"
+            
+            # Если контейнер не запущен - покажем логи и упадем с ошибкой
+            docker ps | grep telegram-bot-container || (echo "❌ Контейнер не запущен!" && docker logs telegram-bot-container && exit 1)
+
+            # Очистка старых образов
             docker image prune -f
+            
+            echo "✅ Деплой завершен!"
