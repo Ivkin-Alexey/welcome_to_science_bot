@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # Dev режим - с hot reload и монтированием исходников
+  bot-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: welcome_to_science_bot_dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # Монтируем исходники для hot reload
+      - ./src:/app/src:ro
+      - ./package.json:/app/package.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      # Исключаем node_modules из монтирования
+      - /app/node_modules
+    profiles:
+      - dev
+    networks:
+      - bot-network
+
+  # Prod режим - использует собранный образ
+  # Поддержка двух вариантов хранения секретов:
+  # 1. Секреты на сервере (рекомендуется): создайте файл /etc/welcome_to_science_bot/secrets.env
+  # 2. Переменные окружения: передаются через CI/CD (GitHub Secrets) или из окружения хоста
+  bot-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: welcome_to_science_bot_prod
+    restart: unless-stopped
+    # Вариант 1: Секреты из файла на сервере (приоритет, если файл существует)
+    # Раскомментируйте следующую строку и создайте файл на сервере:
+    # env_file:
+    #   - /etc/welcome_to_science_bot/secrets.env
+    # Вариант 2: Переменные окружения (используется, если env_file не указан или файл не существует)
+    environment:
+      - NODE_ENV=production
+      # Переменные из окружения хоста автоматически передаются в контейнер
+      # Если переменная указана без значения, она берется из окружения хоста
+      - BOT_API_TOKEN=${BOT_API_TOKEN}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    profiles:
+      - prod
+    networks:
+      - bot-network
+
+networks:
+  bot-network:
+    driver: bridge

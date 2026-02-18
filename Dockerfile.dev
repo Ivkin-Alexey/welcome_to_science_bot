@@ -1,0 +1,20 @@
+# Dockerfile для разработки с hot reload
+FROM node:18-alpine
+
+# Создаём рабочую директорию в контейнере
+WORKDIR /app
+
+# Копируем package.json и package-lock.json
+COPY package*.json ./
+
+# Устанавливаем зависимости (включая dev зависимости)
+RUN npm install
+
+# Копируем конфигурационные файлы
+COPY tsconfig.json ./
+
+# В dev режиме не собираем проект, используем tsx напрямую
+# Исходники монтируются через volume в docker-compose.yml
+
+# Задаём команду для dev-режима с hot reload
+CMD ["npm", "run", "dev"]

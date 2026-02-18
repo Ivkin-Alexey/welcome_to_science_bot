@@ -29,12 +29,6 @@ jobs:
             mkdir -p $PROJECT_PATH
             cd $PROJECT_PATH
 
-            # Сохранение .env файла
-            echo "🔧 Создание .env файла..."
-            echo "BOT_API_TOKEN=${{ secrets.BOT_API_TOKEN }}" > .env
-            echo "LOG_LEVEL=INFO" >> .env
-            echo "✅ .env файл создан"
-
             # Клонирование или обновление кода
             echo "📦 Обновление кода из репозитория..."
             if [ -d .git ]; then
@@ -45,24 +39,16 @@ jobs:
               echo "✅ Репозиторий склонирован"
             fi
 
-            # Сборка Docker образа
-            echo "🏗️ Сборка Docker образа..."
-            docker build -t telegram-bot:latest .
-            echo "✅ Docker образ собран"
-
-            # Остановка и удаление старого контейнера
+            # Остановка старого контейнера (docker-compose profile prod)
             echo "🛑 Остановка старого контейнера..."
-            docker stop telegram-bot-container 2>/dev/null || true
-            docker rm telegram-bot-container 2>/dev/null || true
-            echo "✅ Старый контейнер удален"
+            docker compose --profile prod down 2>/dev/null || true
+            echo "✅ Старый контейнер остановлен"
 
-            # Запуск нового контейнера
-            echo "🚀 Запуск нового контейнера..."
-            docker run -d \
-              --name telegram-bot-container \
-              --restart unless-stopped \
-              --env-file .env \
-              telegram-bot:latest
+            # Запуск через docker-compose с переменными из GitHub Secrets
+            echo "🚀 Запуск контейнера через docker compose..."
+            BOT_API_TOKEN="${{ secrets.BOT_API_TOKEN }}" \
+            LOG_LEVEL="INFO" \
+            docker compose --profile prod up -d --build
             
             echo "✅ Контейнер запущен, начинаем проверку..."
 
@@ -74,30 +60,27 @@ jobs:
             sleep 15
 
             # Шаг 1: Проверяем, работает ли контейнер сейчас
-            if [ ! "$(docker ps -q -f name=telegram-bot-container)" ]; then
+            if [ ! "$(docker ps -q -f name=welcome_to_science_bot_prod)" ]; then
               echo "❌ ОШИБКА: Контейнер не работает!"
               echo ""
               echo "📋 Статус контейнера:"
-              docker ps -a -f name=telegram-bot-container
+              docker ps -a -f name=welcome_to_science_bot_prod
               echo ""
               echo "📋 Логи контейнера:"
-              docker logs telegram-bot-container
-              echo ""
-              echo "📋 Содержимое .env (токен скрыт):"
-              cat .env | sed 's/BOT_API_TOKEN=.*/BOT_API_TOKEN=***/'
+              docker logs welcome_to_science_bot_prod
               exit 1
             fi
             echo "✅ Контейнер работает"
 
             # Шаг 2: Проверяем количество перезапусков
-            RESTART_COUNT=$(docker inspect telegram-bot-container --format='{{.RestartCount}}')
+            RESTART_COUNT=$(docker inspect welcome_to_science_bot_prod --format='{{.RestartCount}}')
             if [ "$RESTART_COUNT" -gt 0 ]; then
               echo "⚠️ Контейнер перезапускался $RESTART_COUNT раз(а)"
               if [ "$RESTART_COUNT" -gt 2 ]; then
                 echo "❌ ОШИБКА: Слишком много перезапусков ($RESTART_COUNT)"
                 echo ""
                 echo "📋 Логи контейнера:"
-                docker logs telegram-bot-container --tail 50
+                docker logs welcome_to_science_bot_prod --tail 50
                 exit 1
               fi
             else
@@ -108,19 +91,16 @@ jobs:
             echo "📋 Анализ логов на наличие ошибок..."
             
             # Проверяем конкретную ошибку с токеном
-            if docker logs telegram-bot-container 2>&1 | grep -q "BOT_API_TOKEN is not defined"; then
+            if docker logs welcome_to_science_bot_prod 2>&1 | grep -q "BOT_API_TOKEN is not defined"; then
               echo "❌ КРИТИЧЕСКАЯ ОШИБКА: BOT_API_TOKEN не передан в контейнер!"
               echo ""
               echo "📋 Логи:"
-              docker logs telegram-bot-container --tail 20
-              echo ""
-              echo "📋 Содержимое .env (токен скрыт):"
-              cat .env | sed 's/BOT_API_TOKEN=.*/BOT_API_TOKEN=***/'
+              docker logs welcome_to_science_bot_prod --tail 20
               exit 1
             fi
             
             # Проверяем другие ошибки
-            ERROR_LOGS=$(docker logs telegram-bot-container 2>&1 | grep -i "error\|exception\|fail" | head -20)
+            ERROR_LOGS=$(docker logs welcome_to_science_bot_prod 2>&1 | grep -i "error\|exception\|fail" | head -20)
             if [ ! -z "$ERROR_LOGS" ]; then
               echo "⚠️ Найдены ошибки в логах (но контейнер работает):"
               echo "$ERROR_LOGS"
@@ -129,27 +109,27 @@ jobs:
             fi
 
             # Шаг 4: Проверяем, что процесс Node.js жив
-            if docker exec telegram-bot-container ps aux 2>/dev/null | grep -q node; then
+            if docker exec welcome_to_science_bot_prod ps aux 2>/dev/null | grep -q node; then
               echo "✅ Node.js процесс работает"
             else
               echo "❌ ОШИБКА: Node.js процесс не найден внутри контейнера!"
               echo ""
               echo "📋 Процессы в контейнере:"
-              docker exec telegram-bot-container ps aux 2>/dev/null || echo "Не удалось выполнить ps aux"
+              docker exec welcome_to_science_bot_prod ps aux 2>/dev/null || echo "Не удалось выполнить ps aux"
               echo ""
               echo "📋 Логи контейнера:"
-              docker logs telegram-bot-container --tail 30
+              docker logs welcome_to_science_bot_prod --tail 30
               exit 1
             fi
 
             # Шаг 5: Проверяем, что переменная окружения доступна внутри контейнера
-            if docker exec telegram-bot-container env | grep -q "BOT_API_TOKEN"; then
+            if docker exec welcome_to_science_bot_prod env | grep -q "BOT_API_TOKEN"; then
               echo "✅ Переменная BOT_API_TOKEN доступна в контейнере"
             else
               echo "❌ ОШИБКА: Переменная BOT_API_TOKEN не найдена в окружении контейнера!"
               echo ""
               echo "📋 Переменные окружения в контейнере:"
-              docker exec telegram-bot-container env | grep -E "BOT|NODE" || echo "Переменные не найдены"
+              docker exec welcome_to_science_bot_prod env | grep -E "BOT|NODE" || echo "Переменные не найдены"
               exit 1
             fi
 
@@ -157,11 +137,11 @@ jobs:
             echo "⏳ Финальная проверка стабильности (5 секунд)..."
             sleep 5
             
-            if [ ! "$(docker ps -q -f name=telegram-bot-container)" ]; then
+            if [ ! "$(docker ps -q -f name=welcome_to_science_bot_prod)" ]; then
               echo "❌ ОШИБКА: Контейнер упал после проверок!"
               echo ""
               echo "📋 Последние логи:"
-              docker logs telegram-bot-container --tail 50
+              docker logs welcome_to_science_bot_prod --tail 50
               exit 1
             fi
 
@@ -170,13 +150,13 @@ jobs:
             echo "🎉🎉🎉 ДЕПЛОЙ УСПЕШНО ЗАВЕРШЕН! 🎉🎉🎉"
             echo ""
             echo "📊 Итоговая информация:"
-            echo "   • Контейнер: telegram-bot-container"
-            echo "   • Статус: $(docker inspect telegram-bot-container --format='{{.State.Status}}')"
-            echo "   • Перезапусков: $(docker inspect telegram-bot-container --format='{{.RestartCount}}')"
-            echo "   • Время работы: $(docker inspect telegram-bot-container --format='{{.State.StartedAt}}' | cut -d'T' -f2 | cut -d'.' -f1)"
+            echo "   • Контейнер: welcome_to_science_bot_prod"
+            echo "   • Статус: $(docker inspect welcome_to_science_bot_prod --format='{{.State.Status}}')"
+            echo "   • Перезапусков: $(docker inspect welcome_to_science_bot_prod --format='{{.RestartCount}}')"
+            echo "   • Время работы: $(docker inspect welcome_to_science_bot_prod --format='{{.State.StartedAt}}' | cut -d'T' -f2 | cut -d'.' -f1)"
             echo ""
             echo "📋 Последние строки лога:"
-            docker logs --tail 5 telegram-bot-container
+            docker logs --tail 5 welcome_to_science_bot_prod
             echo ""
             echo "✅ Бот успешно запущен и работает стабильно!"
 
